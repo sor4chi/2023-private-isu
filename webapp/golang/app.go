@@ -109,7 +109,7 @@ func tryLogin(accountName, password string) User {
 	}
 
 	if calculatePasshash(u.AccountName, password) == u.Passhash {
-		return u
+		return *UserCache[u.ID]
 	} else {
 		return User{}
 	}
@@ -204,18 +204,6 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 		}
 	}
 
-	var allCommentsUsers []User
-	for _, id := range allCommentsUserIds {
-		UserCacheMutex[id].Lock()
-		allCommentsUsers = append(allCommentsUsers, *UserCache[id])
-		UserCacheMutex[id].Unlock()
-	}
-
-	usersMap := map[int]User{}
-	for _, u := range allCommentsUsers {
-		usersMap[u.ID] = u
-	}
-
 	for _, p := range results {
 		comments := commentsMap[p.ID]
 		p.CommentCount = len(comments)
@@ -223,10 +211,10 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 			comments = comments[len(comments)-3:]
 		}
 		for i := 0; i < len(comments); i++ {
-			comments[i].User = usersMap[comments[i].UserID]
+			comments[i].User = *UserCache[comments[i].UserID]
 		}
 		p.Comments = comments
-		p.User = usersMap[p.UserID]
+		p.User = *UserCache[p.UserID]
 		p.CSRFToken = csrfToken
 		posts = append(posts, p)
 	}
