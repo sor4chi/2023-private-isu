@@ -105,8 +105,8 @@ func tryLogin(accountName, password string) *User {
 }
 
 func validateUser(accountName, password string) bool {
-	return regexp.MustCompile(`\A[0-9a-zA-Z_]{3,}\z`).MatchString(accountName) &&
-		regexp.MustCompile(`\A[0-9a-zA-Z_]{6,}\z`).MatchString(password)
+	return regexp.MustCompile(`^[0-9a-zA-Z_]{3,}$`).MatchString(accountName) &&
+		regexp.MustCompile(`^[0-9a-zA-Z_]{6,}$`).MatchString(password)
 }
 
 // 今回のGo実装では言語側のエスケープの仕組みが使えないのでOSコマンドインジェクション対策できない
