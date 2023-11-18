@@ -163,40 +163,69 @@ func getFlash(w http.ResponseWriter, r *http.Request, key string) string {
 func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, error) {
 	var posts []Post
 
+	postIds := make([]int, len(results))
+	postUserIds := make([]int, len(results))
+	for i, p := range results {
+		postIds[i] = p.ID
+		postUserIds[i] = p.UserID
+	}
+	sql, params, err := sqlx.In("SELECT * FROM `comments` WHERE `post_id` IN (?) ORDER BY `created_at` ASC", postIds)
+	if err != nil {
+		return nil, err
+	}
+	var allPostsComments []Comment
+	err = db.Select(&allPostsComments, sql, params...)
+	if err != nil {
+		return nil, err
+	}
+
+	commentsMap := map[int][]Comment{}
+	for _, c := range allPostsComments {
+		commentsMap[c.PostID] = append(commentsMap[c.PostID], c)
+	}
+
+	allCommentsUserIds := make([]int, len(allPostsComments)+len(postUserIds))
+	allCommentsUserIdsMap := map[int]struct{}{}
+	for i, p := range postUserIds {
+		allCommentsUserIds[i] = p
+		allCommentsUserIdsMap[p] = struct{}{}
+	}
+	for _, c := range allPostsComments {
+		if _, ok := allCommentsUserIdsMap[c.UserID]; !ok {
+			allCommentsUserIds = append(allCommentsUserIds, c.UserID)
+			allCommentsUserIdsMap[c.UserID] = struct{}{}
+		}
+	}
+
+	sql, params, err = sqlx.In("SELECT * FROM `users` WHERE `id` IN (?)", allCommentsUserIds)
+	if err != nil {
+		return nil, err
+	}
+
+	var allCommentsUsers []User
+	err = db.Select(&allCommentsUsers, sql, params...)
+	if err != nil {
+		return nil, err
+	}
+
+	usersMap := map[int]User{}
+	for _, u := range allCommentsUsers {
+		usersMap[u.ID] = u
+	}
+
 	for _, p := range results {
-		query := "SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `created_at` ASC"
-		if !allComments {
-			query += " LIMIT 3"
-		}
-		var comments []Comment
-		err := db.Select(&comments, query, p.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		for i := 0; i < len(comments); i++ {
-			err := db.Get(&comments[i].User, "SELECT * FROM `users` WHERE `id` = ?", comments[i].UserID)
-			if err != nil {
-				return nil, err
-			}
-		}
-
+		comments := commentsMap[p.ID]
 		p.CommentCount = len(comments)
+		if !allComments && len(comments) > 3 {
+			comments = comments[len(comments)-3:]
+		}
+		for i := 0; i < len(comments); i++ {
+			comments[i].User = usersMap[comments[i].UserID]
+		}
 		p.Comments = comments
-
-		err = db.Get(&p.User, "SELECT * FROM `users` WHERE `id` = ?", p.UserID)
-		if err != nil {
-			return nil, err
-		}
-
+		p.User = usersMap[p.UserID]
 		p.CSRFToken = csrfToken
-
-		if p.User.DelFlg == 0 {
-			posts = append(posts, p)
-		}
-		if len(posts) >= postsPerPage {
-			break
-		}
+		posts = append(posts, p)
 	}
 
 	return posts, nil
@@ -373,9 +402,9 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 			posts.body,
 			posts.mime,
 			posts.created_at
-		FROM 
+		FROM
 			posts
-		JOIN 
+		JOIN
 			users ON users.id = posts.user_id
 		WHERE
 			users.del_flg = 0
