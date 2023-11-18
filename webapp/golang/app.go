@@ -35,6 +35,8 @@ const (
 	UploadLimit   = 10 * 1024 * 1024 // 10mb
 )
 
+var makePostsCache = make(map[string]Post)
+
 type User struct {
 	ID          int       `db:"id"`
 	AccountName string    `db:"account_name"`
@@ -178,6 +180,11 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 	var posts []Post
 
 	for _, p := range results {
+		if v, ok := makePostsCache[strconv.Itoa(p.ID)]; ok {
+			posts = append(posts, v)
+			continue
+		}
+
 		query := `
 			SELECT
 				comments.id AS comment_id,
@@ -238,7 +245,10 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 
 		if p.User.DelFlg == 0 {
 			posts = append(posts, p)
+
+			makePostsCache[strconv.Itoa(p.ID)] = p
 		}
+
 		if len(posts) >= postsPerPage {
 			break
 		}
@@ -286,6 +296,7 @@ func getTemplPath(filename string) string {
 }
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
+	makePostsCache = make(map[string]Post)
 	dbInitialize()
 	w.WriteHeader(http.StatusOK)
 }
@@ -418,9 +429,9 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 			posts.body,
 			posts.mime,
 			posts.created_at
-		FROM 
+		FROM
 			posts
-		JOIN 
+		JOIN
 			users ON users.id = posts.user_id
 		WHERE
 			users.del_flg = 0
@@ -765,6 +776,8 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	delete(makePostsCache, strconv.Itoa(postID))
+
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
 
@@ -797,6 +810,14 @@ func getAdminBanned(w http.ResponseWriter, r *http.Request) {
 	}{users, me, getCSRFToken(r)})
 }
 
+func deleteAllPostsCacheFromUserID(uid string) {
+	for k, v := range makePostsCache {
+		if strconv.Itoa(v.UserID) == uid {
+			delete(makePostsCache, k)
+		}
+	}
+}
+
 func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 	me := getSessionUser(r)
 	if !isLogin(me) {
@@ -824,6 +845,12 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 
 	for _, id := range r.Form["uid[]"] {
 		db.Exec(query, 1, id)
+	}
+
+	for _, id := range r.Form["uid[]"] {
+		go func() {
+			deleteAllPostsCacheFromUserID(id)
+		}()
 	}
 
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
