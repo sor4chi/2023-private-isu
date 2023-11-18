@@ -144,6 +144,7 @@ func getSession(r *http.Request) *sessions.Session {
 func getSessionUser(r *http.Request) User {
 	session := getSession(r)
 	uid, ok := session.Values["user_id"]
+	log.Default().Print(uid, ok)
 	if !ok || uid == nil {
 		return User{}
 	}
