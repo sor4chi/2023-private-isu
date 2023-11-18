@@ -44,3 +44,7 @@ app-deploy:
 	echo "app deploy"
 	cd /home/isucon/private_isu/webapp/golang && make
 	sudo systemctl restart isu-go
+
+.PHONY: pprof
+pprof:
+	go tool pprof -seconds 60 -http=localhost:1080 http://localhost:6060/debug/pprof/profile
