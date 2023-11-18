@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
@@ -34,6 +35,9 @@ const (
 	ISO8601Format = "2006-01-02T15:04:05-07:00"
 	UploadLimit   = 10 * 1024 * 1024 // 10mb
 )
+
+var makePostsCache map[string]Post
+var makePostsCacheMu sync.Mutex
 
 type User struct {
 	ID          int       `db:"id"`
@@ -182,6 +186,11 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 	var posts []Post
 
 	for _, p := range results {
+		if v, ok := makePostsCache[strconv.Itoa(p.ID)]; ok {
+			posts = append(posts, v)
+			continue
+		}
+
 		query := `
 			SELECT
 				comments.id AS comment_id,
@@ -242,7 +251,12 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 
 		if p.User.DelFlg == 0 {
 			posts = append(posts, p)
+
+			makePostsCacheMu.Lock()
+			makePostsCache[strconv.Itoa(p.ID)] = p
+			makePostsCacheMu.Unlock()
 		}
+
 		if len(posts) >= postsPerPage {
 			break
 		}
@@ -290,6 +304,7 @@ func getTemplPath(filename string) string {
 }
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
+	makePostsCache = map[string]Post{}
 	dbInitialize()
 	w.WriteHeader(http.StatusOK)
 }
@@ -752,6 +767,10 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	makePostsCacheMu.Lock()
+	delete(makePostsCache, strconv.Itoa(postID))
+	makePostsCacheMu.Unlock()
+
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
 
@@ -786,6 +805,16 @@ func getAdminBanned(w http.ResponseWriter, r *http.Request) {
 	}{users, me, getCSRFToken(r)})
 }
 
+func deleteAllPostsCacheFromUserID(uid string) {
+	for k, v := range makePostsCache {
+		if strconv.Itoa(v.UserID) == uid {
+			makePostsCacheMu.Lock()
+			delete(makePostsCache, k)
+			makePostsCacheMu.Unlock()
+		}
+	}
+}
+
 func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 	me := getSessionUser(r)
 	if !isLogin(me) {
@@ -815,10 +844,15 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 		db.Exec(query, 1, id)
 	}
 
+	for _, id := range r.Form["uid[]"] {
+		deleteAllPostsCacheFromUserID(id)
+	}
+
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
 }
 
 func main() {
+	makePostsCache = map[string]Post{}
 	host := os.Getenv("ISUCONP_DB_HOST")
 	if host == "" {
 		host = "localhost"
