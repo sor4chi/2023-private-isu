@@ -144,7 +144,10 @@ func getSessionUser(r *http.Request) User {
 		return User{}
 	}
 
-	if u, ok := userCache[strconv.Itoa(uid.(int))]; ok {
+	// uid is int64, but userCache key is string
+	uidString := strconv.FormatInt(uid.(int64), 10)
+
+	if u, ok := userCache[uidString]; ok {
 		return u
 	}
 
@@ -155,7 +158,7 @@ func getSessionUser(r *http.Request) User {
 		return User{}
 	}
 
-	userCache[strconv.Itoa(uid.(int))] = u
+	userCache[uidString] = u
 
 	return u
 }
