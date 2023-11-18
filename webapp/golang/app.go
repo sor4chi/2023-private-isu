@@ -164,7 +164,24 @@ func getFlash(w http.ResponseWriter, r *http.Request, key string) string {
 	}
 }
 
+var makePostsCache = map[string][]Post{}
+
+func makePostsCacheKey(results []Post, allComments bool) string {
+	var ids []string
+	for _, p := range results {
+		ids = append(ids, strconv.Itoa(p.ID))
+	}
+	return strings.Join(ids, ",") + strconv.FormatBool(allComments)
+}
+
 func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, error) {
+	key := makePostsCacheKey(results, allComments)
+	if posts, ok := makePostsCache[key]; ok {
+		for i := 0; i < len(posts); i++ {
+			posts[i].CSRFToken = csrfToken
+		}
+		return posts, nil
+	}
 	var posts []Post
 
 	postIds := make([]int, len(results))
@@ -232,6 +249,8 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 		posts = append(posts, p)
 	}
 
+	makePostsCache[key] = posts
+
 	return posts, nil
 }
 
@@ -274,6 +293,7 @@ func getTemplPath(filename string) string {
 }
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
+	makePostsCache = map[string][]Post{}
 	dbInitialize()
 	w.WriteHeader(http.StatusOK)
 }
