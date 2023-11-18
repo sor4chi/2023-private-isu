@@ -42,6 +42,5 @@ mysql-conf-deploy:
 .PHONY: app-deploy
 app-deploy:
 	echo "app deploy"
-	cd /home/isucon/private_isu/webapp/golang
-	make
+	cd /home/isucon/private_isu/webapp/golang && make
 	sudo systemctl restart isu-go
