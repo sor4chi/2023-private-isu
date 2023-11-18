@@ -147,10 +147,14 @@ func getSessionUser(r *http.Request) User {
 	if !ok || uid == nil {
 		return User{}
 	}
+	iuid, err := strconv.Atoi(uid.(string))
+	if err != nil {
+		return User{}
+	}
 
-	UserCacheMutex[uid.(int)].Lock()
-	user := *UserCache[uid.(int)]
-	UserCacheMutex[uid.(int)].Unlock()
+	UserCacheMutex[iuid].Lock()
+	user := *UserCache[iuid]
+	UserCacheMutex[iuid].Unlock()
 	return user
 }
 
@@ -374,15 +378,15 @@ func postRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session := getSession(r)
 	uid, err := result.LastInsertId()
 	if err != nil {
 		log.Print(err)
 		return
 	}
-	AccountName2ID[accountName] = int(uid)
+
 	UserCacheMutex[int(uid)] = &sync.Mutex{}
 	UserCacheMutex[int(uid)].Lock()
+	AccountName2ID[accountName] = int(uid)
 	UserCache[int(uid)] = &User{
 		ID:          int(uid),
 		AccountName: accountName,
@@ -392,6 +396,8 @@ func postRegister(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:   time.Now(),
 	}
 	UserCacheMutex[int(uid)].Unlock()
+
+	session := getSession(r)
 	session.Values["user_id"] = uid
 	session.Values["csrf_token"] = secureRandomStr(16)
 	session.Save(r, w)
