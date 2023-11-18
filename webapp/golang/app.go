@@ -250,7 +250,29 @@ func getTemplPath(filename string) string {
 }
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
+	// reset image directory
+	os.RemoveAll("../public/image")
+
 	dbInitialize()
+
+	// save images
+	results := []Post{}
+	err := db.Select(&results, "SELECT * FROM `posts`")
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	for _, p := range results {
+		file := imageURL(p)
+		if _, err := os.Stat("../public" + file); err == nil {
+			continue
+		}
+		err := os.WriteFile("../public"+file, p.Imgdata, 0644)
+		if err != nil {
+			log.Print(err)
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
