@@ -290,6 +290,9 @@ func getInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, f := range files {
+		if f.Name() == ".gitignore" {
+			continue
+		}
 		idStr := strings.TrimSuffix(f.Name(), path.Ext(f.Name()))
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
