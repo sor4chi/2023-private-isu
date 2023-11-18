@@ -629,7 +629,7 @@ func getPostsID(w http.ResponseWriter, r *http.Request) {
 		JOIN
 			users ON users.id = posts.user_id
 		WHERE
-			users.del_flg = 0 AND id = ?
+			users.del_flg = 0 AND posts.id = ?
 		LIMIT 1
 	`
 	err = db.Select(&results, query, pid)
