@@ -174,7 +174,7 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 		postIds[i] = p.ID
 		postUserIds[i] = p.UserID
 	}
-	sql, params, err := sqlx.In("SELECT * FROM `comments` WHERE `post_id` IN (?) ORDER BY `created_at` ASC", postIds)
+	sql, params, err := sqlx.In("SELECT * FROM `comments` WHERE `post_id` IN (?) ORDER BY `created_at` DESC", postIds)
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +226,10 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 		}
 		for i := 0; i < len(comments); i++ {
 			comments[i].User = usersMap[comments[i].UserID]
+		}
+		// reverse
+		for i, j := 0, len(comments)-1; i < j; i, j = i+1, j-1 {
+			comments[i], comments[j] = comments[j], comments[i]
 		}
 		p.Comments = comments
 		p.User = usersMap[p.UserID]
