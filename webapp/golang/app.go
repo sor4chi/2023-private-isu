@@ -36,7 +36,7 @@ const (
 	UploadLimit   = 10 * 1024 * 1024 // 10mb
 )
 
-var makePostsCache map[string]Post
+var makePostsCache = make(map[string]Post)
 var makePostsCacheMu sync.Mutex
 
 type User struct {
@@ -278,7 +278,7 @@ func getTemplPath(filename string) string {
 }
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
-	makePostsCache = map[string]Post{}
+	makePostsCache = make(map[string]Post)
 	dbInitialize()
 	w.WriteHeader(http.StatusOK)
 }
@@ -839,7 +839,6 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	makePostsCache = map[string]Post{}
 	host := os.Getenv("ISUCONP_DB_HOST")
 	if host == "" {
 		host = "localhost"
