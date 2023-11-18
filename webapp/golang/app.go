@@ -452,8 +452,10 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	withCSRFPosts := []Post{}
 	for _, p := range posts {
 		p.CSRFToken = csrfToken
+		withCSRFPosts = append(withCSRFPosts, p)
 	}
 
 	getIndexTemplate.Execute(w, struct {
@@ -461,7 +463,7 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		Me        User
 		CSRFToken string
 		Flash     string
-	}{posts, me, getCSRFToken(r), getFlash(w, r, "notice")})
+	}{withCSRFPosts, me, getCSRFToken(r), getFlash(w, r, "notice")})
 }
 
 var getAccountNameTemplate = template.Must(template.New("layout.html").Funcs(fmap).ParseFiles(
@@ -502,14 +504,15 @@ func getAccountName(w http.ResponseWriter, r *http.Request) {
 
 		csrfToken := getCSRFToken(r)
 
-		posts, err = makePosts(results, false)
+		_posts, err := makePosts(results, false)
 		if err != nil {
 			log.Print(err)
 			return
 		}
 
-		for _, p := range posts {
+		for _, p := range _posts {
 			p.CSRFToken = csrfToken
+			posts = append(posts, p)
 		}
 	}()
 
@@ -615,16 +618,18 @@ func getPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	withCSRFPosts := []Post{}
 	for _, p := range posts {
 		p.CSRFToken = csrfToken
+		withCSRFPosts = append(withCSRFPosts, p)
 	}
 
-	if len(posts) == 0 {
+	if len(withCSRFPosts) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	getPostsTemplate.Execute(w, posts)
+	getPostsTemplate.Execute(w, withCSRFPosts)
 }
 
 var getPostsIDTemplate = template.Must(template.New("layout.html").Funcs(fmap).ParseFiles(
@@ -656,16 +661,18 @@ func getPostsID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	withCSRFPosts := []Post{}
 	for _, p := range posts {
 		p.CSRFToken = csrfToken
+		withCSRFPosts = append(withCSRFPosts, p)
 	}
 
-	if len(posts) == 0 {
+	if len(withCSRFPosts) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	p := posts[0]
+	p := withCSRFPosts[0]
 
 	me := getSessionUser(r)
 
