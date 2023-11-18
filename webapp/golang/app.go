@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
@@ -471,31 +472,48 @@ func getAccountName(w http.ResponseWriter, r *http.Request) {
 
 	results := []Post{}
 
-	err = db.Select(&results, "SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `created_at` DESC LIMIT ?", user.ID, postsPerPage)
-	if err != nil {
-		log.Print(err)
-		return
-	}
+	wg := sync.WaitGroup{}
+	var posts []Post
 
-	posts, err := makePosts(results, getCSRFToken(r), false)
-	if err != nil {
-		log.Print(err)
-		return
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err = db.Select(&results, "SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `created_at` DESC", user.ID)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+
+		posts, err = makePosts(results, getCSRFToken(r), false)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+	}()
 
 	commentCount := 0
-	err = db.Get(&commentCount, "SELECT COUNT(*) AS count FROM `comments` WHERE `user_id` = ?", user.ID)
-	if err != nil {
-		log.Print(err)
-		return
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err = db.Get(&commentCount, "SELECT COUNT(*) AS count FROM `comments` WHERE `user_id` = ?", user.ID)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+	}()
 
 	postCount := 0
-	err = db.Select(&postCount, "SELECT COUNT(`id`) FROM `posts` WHERE `user_id` = ?", user.ID)
-	if err != nil {
-		log.Print(err)
-		return
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err = db.Select(&postCount, "SELECT COUNT(`id`) FROM `posts` WHERE `user_id` = ?", user.ID)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+	}()
+
+	wg.Wait()
 
 	commentedCount := 0
 	if postCount > 0 {
