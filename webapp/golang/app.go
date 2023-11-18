@@ -12,8 +12,10 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
@@ -70,6 +72,10 @@ var fmap = template.FuncMap{
 	"imageURL": imageURL,
 }
 
+var UserCache = map[int]*User{}
+var AccountName2ID = map[string]int{}
+var UserCacheMutex = map[int]*sync.Mutex{}
+
 func init() {
 	memdAddr := os.Getenv("ISUCONP_MEMCACHED_ADDRESS")
 	if memdAddr == "" {
@@ -96,13 +102,14 @@ func dbInitialize() {
 
 func tryLogin(accountName, password string) *User {
 	u := User{}
-	err := db.Get(&u, "SELECT * FROM users WHERE account_name = ? AND del_flg = 0", accountName)
-	if err != nil {
-		return nil
+	if AccountName2ID[accountName] != 0 && UserCache[AccountName2ID[accountName]].DelFlg == 0 {
+		UserCacheMutex[AccountName2ID[accountName]].Lock()
+		u = *UserCache[AccountName2ID[accountName]]
+		UserCacheMutex[AccountName2ID[accountName]].Unlock()
 	}
 
 	if calculatePasshash(u.AccountName, password) == u.Passhash {
-		return &u
+		return UserCache[u.ID]
 	} else {
 		return nil
 	}
@@ -141,14 +148,10 @@ func getSessionUser(r *http.Request) User {
 		return User{}
 	}
 
-	u := User{}
-
-	err := db.Get(&u, "SELECT * FROM `users` WHERE `id` = ?", uid)
-	if err != nil {
-		return User{}
-	}
-
-	return u
+	UserCacheMutex[uid.(int)].Lock()
+	user := *UserCache[uid.(int)]
+	UserCacheMutex[uid.(int)].Unlock()
+	return user
 }
 
 func getFlash(w http.ResponseWriter, r *http.Request, key string) string {
@@ -201,15 +204,11 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 		}
 	}
 
-	sql, params, err = sqlx.In("SELECT * FROM `users` WHERE `id` IN (?)", allCommentsUserIds)
-	if err != nil {
-		return nil, err
-	}
-
 	var allCommentsUsers []User
-	err = db.Select(&allCommentsUsers, sql, params...)
-	if err != nil {
-		return nil, err
+	for _, id := range allCommentsUserIds {
+		UserCacheMutex[id].Lock()
+		allCommentsUsers = append(allCommentsUsers, *UserCache[id])
+		UserCacheMutex[id].Unlock()
 	}
 
 	usersMap := map[int]User{}
@@ -275,6 +274,23 @@ func getTemplPath(filename string) string {
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
 	dbInitialize()
+
+	// initialize user cache
+	UserCache = map[int]*User{}
+	AccountName2ID = map[string]int{}
+	UserCacheMutex = map[int]*sync.Mutex{}
+	var users []User
+	err := db.Select(&users, "SELECT * FROM `users`")
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	for _, u := range users {
+		UserCache[u.ID] = &u
+		AccountName2ID[u.AccountName] = u.ID
+		UserCacheMutex[u.ID] = &sync.Mutex{}
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -306,10 +322,12 @@ func postLogin(w http.ResponseWriter, r *http.Request) {
 	u := tryLogin(r.FormValue("account_name"), r.FormValue("password"))
 
 	if u != nil {
+		UserCacheMutex[u.ID].Lock()
 		session := getSession(r)
 		session.Values["user_id"] = u.ID
 		session.Values["csrf_token"] = secureRandomStr(16)
 		session.Save(r, w)
+		UserCacheMutex[u.ID].Unlock()
 
 		http.Redirect(w, r, "/", http.StatusFound)
 	} else {
@@ -356,11 +374,7 @@ func postRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists := 0
-	// ユーザーが存在しない場合はエラーになるのでエラーチェックはしない
-	db.Get(&exists, "SELECT 1 FROM users WHERE `account_name` = ?", accountName)
-
-	if exists == 1 {
+	if AccountName2ID[accountName] != 0 {
 		session := getSession(r)
 		session.Values["notice"] = "アカウント名がすでに使われています"
 		session.Save(r, w)
@@ -382,6 +396,18 @@ func postRegister(w http.ResponseWriter, r *http.Request) {
 		log.Print(err)
 		return
 	}
+	AccountName2ID[accountName] = int(uid)
+	UserCacheMutex[int(uid)] = &sync.Mutex{}
+	UserCacheMutex[int(uid)].Lock()
+	UserCache[int(uid)] = &User{
+		ID:          int(uid),
+		AccountName: accountName,
+		Passhash:    calculatePasshash(accountName, password),
+		Authority:   0,
+		DelFlg:      0,
+		CreatedAt:   time.Now(),
+	}
+	UserCacheMutex[int(uid)].Unlock()
 	session.Values["user_id"] = uid
 	session.Values["csrf_token"] = secureRandomStr(16)
 	session.Save(r, w)
@@ -458,9 +484,11 @@ func getAccountName(w http.ResponseWriter, r *http.Request) {
 	accountName := chi.URLParam(r, "accountName")
 	user := User{}
 
-	err := db.Get(&user, "SELECT * FROM `users` WHERE `account_name` = ? AND `del_flg` = 0", accountName)
-	if err != nil {
-		log.Print(err)
+	if AccountName2ID[accountName] != 0 && UserCache[AccountName2ID[accountName]].DelFlg == 0 {
+		UserCacheMutex[AccountName2ID[accountName]].Lock()
+		user = *UserCache[AccountName2ID[accountName]]
+		UserCacheMutex[AccountName2ID[accountName]].Unlock()
+	} else {
 		return
 	}
 
@@ -471,7 +499,7 @@ func getAccountName(w http.ResponseWriter, r *http.Request) {
 
 	results := []Post{}
 
-	err = db.Select(&results, "SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `created_at` DESC", user.ID)
+	err := db.Select(&results, "SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `created_at` DESC", user.ID)
 	if err != nil {
 		log.Print(err)
 		return
@@ -757,11 +785,16 @@ func getAdminBanned(w http.ResponseWriter, r *http.Request) {
 	}
 
 	users := []User{}
-	err := db.Select(&users, "SELECT * FROM `users` WHERE `authority` = 0 AND `del_flg` = 0 ORDER BY `created_at` DESC")
-	if err != nil {
-		log.Print(err)
-		return
+	for idx, u := range UserCache {
+		if u.Authority == 0 && u.DelFlg == 0 {
+			UserCacheMutex[idx].Lock()
+			users = append(users, *u)
+			UserCacheMutex[idx].Unlock()
+		}
 	}
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].CreatedAt.After(users[j].CreatedAt)
+	})
 
 	getAdminBannedTemplate.Execute(w, struct {
 		Users     []User
@@ -797,6 +830,16 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 
 	for _, id := range r.Form["uid[]"] {
 		db.Exec(query, 1, id)
+		id_int, err := strconv.Atoi(id)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+		UserCacheMutex[id_int].Lock()
+		user := UserCache[id_int]
+		user.DelFlg = 1
+		UserCache[id_int] = user
+		UserCacheMutex[id_int].Unlock()
 	}
 
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
