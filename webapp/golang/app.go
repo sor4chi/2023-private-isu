@@ -902,6 +902,10 @@ func main() {
 	}
 	defer listener.Close()
 
+	if err := os.Chmod(sock, 0777); err != nil {
+		log.Fatal(err)
+	}
+
 	if err := http.Serve(listener, r); err != nil {
 		log.Fatal(err)
 	}
