@@ -144,8 +144,7 @@ func getSessionUser(r *http.Request) User {
 		return User{}
 	}
 
-	// uid is int64, but userCache key is string
-	uidString := strconv.FormatInt(uid.(int64), 10)
+	uidString := fmt.Sprintf("%d", uid)
 
 	if u, ok := userCache[uidString]; ok {
 		return u
