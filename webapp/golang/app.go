@@ -35,8 +35,6 @@ const (
 	UploadLimit   = 10 * 1024 * 1024 // 10mb
 )
 
-var makePostsCache = make(map[string]Post)
-
 type User struct {
 	ID          int       `db:"id"`
 	AccountName string    `db:"account_name"`
@@ -276,7 +274,6 @@ func getTemplPath(filename string) string {
 }
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
-	makePostsCache = make(map[string]Post)
 	dbInitialize()
 	w.WriteHeader(http.StatusOK)
 }
@@ -752,8 +749,6 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	delete(makePostsCache, strconv.Itoa(postID))
-
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
 
@@ -788,14 +783,6 @@ func getAdminBanned(w http.ResponseWriter, r *http.Request) {
 	}{users, me, getCSRFToken(r)})
 }
 
-func deleteAllPostsCacheFromUserID(uid string) {
-	for k, v := range makePostsCache {
-		if strconv.Itoa(v.UserID) == uid {
-			delete(makePostsCache, k)
-		}
-	}
-}
-
 func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 	me := getSessionUser(r)
 	if !isLogin(me) {
@@ -823,12 +810,6 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 
 	for _, id := range r.Form["uid[]"] {
 		db.Exec(query, 1, id)
-	}
-
-	for _, id := range r.Form["uid[]"] {
-		go func() {
-			deleteAllPostsCacheFromUserID(id)
-		}()
 	}
 
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
