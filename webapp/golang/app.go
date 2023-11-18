@@ -409,12 +409,23 @@ var getIndexTemplate = template.Must(template.New("layout.html").Funcs(fmap).Par
 	getTemplPath("post.html"),
 ))
 
+var latestGetIndexResponse = []Post{}
+
 func getIndex(w http.ResponseWriter, r *http.Request) {
 	me := getSessionUser(r)
+	csrfToken := getCSRFToken(r)
 
-	results := []Post{}
+	var posts []Post
+	if len(latestGetIndexResponse) > 0 {
+		for _, p := range posts {
+			posts = latestGetIndexResponse
+			p.CSRFToken = getCSRFToken(r)
+		}
+	} else {
 
-	const query = `
+		results := []Post{}
+
+		const query = `
 		SELECT
 			posts.id,
 			posts.user_id,
@@ -431,18 +442,17 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		LIMIT ?
 	`
 
-	err := db.Select(&results, query, postsPerPage)
-	if err != nil {
-		log.Print(err)
-		return
-	}
+		err := db.Select(&results, query, postsPerPage)
+		if err != nil {
+			log.Print(err)
+			return
+		}
 
-	csrfToken := getCSRFToken(r)
-
-	posts, err := makePosts(results, false)
-	if err != nil {
-		log.Print(err)
-		return
+		posts, err = makePosts(results, false)
+		if err != nil {
+			log.Print(err)
+			return
+		}
 	}
 
 	for _, p := range posts {
@@ -738,6 +748,8 @@ func postIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	latestGetIndexResponse = []Post{}
+
 	pid, err := result.LastInsertId()
 	if err != nil {
 		log.Print(err)
@@ -780,6 +792,12 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Print(err)
 			return
+		}
+		for _, r := range latestGetIndexResponse {
+			if r.ID == postID {
+				latestGetIndexResponse = []Post{}
+				break
+			}
 		}
 	}()
 
@@ -854,6 +872,17 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Print(err)
 		return
+	}
+
+	for _, r := range latestGetIndexResponse {
+		for _, c := range r.Comments {
+			for _, id := range ids {
+				if strconv.Itoa(c.UserID) == fmt.Sprintf("%s", id) {
+					latestGetIndexResponse = []Post{}
+					break
+				}
+			}
+		}
 	}
 
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
