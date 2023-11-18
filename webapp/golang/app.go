@@ -772,6 +772,11 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
 
+var getAdminBannedTemplate = template.Must(template.ParseFiles(
+	getTemplPath("layout.html"),
+	getTemplPath("banned.html")),
+)
+
 func getAdminBanned(w http.ResponseWriter, r *http.Request) {
 	me := getSessionUser(r)
 	if !isLogin(me) {
@@ -791,10 +796,7 @@ func getAdminBanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template.Must(template.ParseFiles(
-		getTemplPath("layout.html"),
-		getTemplPath("banned.html")),
-	).Execute(w, struct {
+	getAdminBannedTemplate.Execute(w, struct {
 		Users     []User
 		Me        User
 		CSRFToken string
