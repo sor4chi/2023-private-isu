@@ -168,98 +168,72 @@ func getFlash(w http.ResponseWriter, r *http.Request, key string) string {
 	}
 }
 
-// commentsとusersを結合した構造体、のちにcommentsとusersのINNER JOIN結果をbindする
-type CommentsAndUsers struct {
-	CommentID        int       `db:"comment_id"`
-	CommentPostID    int       `db:"comment_post_id"`
-	Comment          string    `db:"comment_comment"`
-	CommentCreatedAt time.Time `db:"comment_created_at"`
-	UserID           int       `db:"user_id"`
-	UserAccountName  string    `db:"user_account_name"`
-	UserPasshash     string    `db:"user_passhash"`
-	UserAuthority    int       `db:"user_authority"`
-	UserDelFlg       int       `db:"user_del_flg"`
-	UserCreatedAt    time.Time `db:"user_created_at"`
-}
-
 func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, error) {
 	var posts []Post
 
+	postIds := make([]int, len(results))
+	postUserIds := make([]int, len(results))
+	for i, p := range results {
+		postIds[i] = p.ID
+		postUserIds[i] = p.UserID
+	}
+	sql, params, err := sqlx.In("SELECT * FROM `comments` WHERE `post_id` IN (?) ORDER BY `created_at` ASC", postIds)
+	if err != nil {
+		return nil, err
+	}
+	var allPostsComments []Comment
+	err = db.Select(&allPostsComments, sql, params...)
+	if err != nil {
+		return nil, err
+	}
+
+	commentsMap := map[int][]Comment{}
+	for _, c := range allPostsComments {
+		commentsMap[c.PostID] = append(commentsMap[c.PostID], c)
+	}
+
+	allCommentsUserIds := make([]int, len(allPostsComments)+len(postUserIds))
+	allCommentsUserIdsMap := map[int]struct{}{}
+	for i, p := range postUserIds {
+		allCommentsUserIds[i] = p
+		allCommentsUserIdsMap[p] = struct{}{}
+	}
+	for _, c := range allPostsComments {
+		if _, ok := allCommentsUserIdsMap[c.UserID]; !ok {
+			allCommentsUserIds = append(allCommentsUserIds, c.UserID)
+			allCommentsUserIdsMap[c.UserID] = struct{}{}
+		}
+	}
+
+	sql, params, err = sqlx.In("SELECT * FROM `users` WHERE `id` IN (?)", allCommentsUserIds)
+	if err != nil {
+		return nil, err
+	}
+
+	var allCommentsUsers []User
+	err = db.Select(&allCommentsUsers, sql, params...)
+	if err != nil {
+		return nil, err
+	}
+
+	usersMap := map[int]User{}
+	for _, u := range allCommentsUsers {
+		usersMap[u.ID] = u
+	}
+
 	for _, p := range results {
-		if v, ok := makePostsCache[strconv.Itoa(p.ID)]; ok {
-			posts = append(posts, v)
-			continue
+		comments := commentsMap[p.ID]
+		p.CommentCount = len(comments)
+		if !allComments && len(comments) > 3 {
+			comments = comments[len(comments)-3:]
 		}
-
-		query := `
-			SELECT
-				comments.id AS comment_id,
-				comments.post_id AS comment_post_id,
-				comments.comment AS comment_comment,
-				comments.created_at AS comment_created_at,
-				users.id AS user_id,
-				users.account_name AS user_account_name,
-				users.passhash AS user_passhash,
-				users.authority AS user_authority,
-				users.del_flg AS user_del_flg,
-				users.created_at AS user_created_at
-			FROM
-				comments
-			INNER JOIN
-				users
-			ON
-				comments.user_id = users.id
-			WHERE
-				comments.post_id = ?
-			ORDER BY
-				comments.created_at ASC
-		`
-		if !allComments {
-			query += " LIMIT 3"
+		for i := 0; i < len(comments); i++ {
+			comments[i].User = usersMap[comments[i].UserID]
 		}
-
-		var comments []CommentsAndUsers
-		err := db.Select(&comments, query, p.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, c := range comments {
-			p.Comments = append(p.Comments, Comment{
-				ID:        c.CommentID,
-				PostID:    c.CommentPostID,
-				Comment:   c.Comment,
-				CreatedAt: c.CommentCreatedAt,
-				User: User{
-					ID:          c.UserID,
-					AccountName: c.UserAccountName,
-					Passhash:    c.UserPasshash,
-					Authority:   c.UserAuthority,
-					DelFlg:      c.UserDelFlg,
-					CreatedAt:   c.UserCreatedAt,
-				},
-			})
-			p.CommentCount++
-		}
-
-		err = db.Get(&p.User, "SELECT * FROM `users` WHERE `id` = ?", p.UserID)
-		if err != nil {
-			return nil, err
-		}
-
+		p.Comments = comments
+		p.User = usersMap[p.UserID]
 		p.CSRFToken = csrfToken
-
-		if p.User.DelFlg == 0 {
-			posts = append(posts, p)
-
-			makePostsCacheMu.Lock()
-			makePostsCache[strconv.Itoa(p.ID)] = p
-			makePostsCacheMu.Unlock()
-		}
-
-		if len(posts) >= postsPerPage {
-			break
-		}
+		posts = append(posts, p)
 	}
 
 	return posts, nil
