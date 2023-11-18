@@ -148,7 +148,8 @@ func getSessionUser(r *http.Request) User {
 	if !ok || uid == nil {
 		return User{}
 	}
-	iuid := uid.(int)
+	tmp_uid := uid.(int64)
+	iuid := int(tmp_uid)
 
 	UserCacheMutex[iuid].Lock()
 	user := *UserCache[iuid]
