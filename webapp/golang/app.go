@@ -14,7 +14,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
@@ -37,7 +36,6 @@ const (
 )
 
 var makePostsCache = make(map[string]Post)
-var makePostsCacheMu sync.Mutex
 
 type User struct {
 	ID          int       `db:"id"`
@@ -754,9 +752,7 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	makePostsCacheMu.Lock()
 	delete(makePostsCache, strconv.Itoa(postID))
-	makePostsCacheMu.Unlock()
 
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
@@ -795,9 +791,7 @@ func getAdminBanned(w http.ResponseWriter, r *http.Request) {
 func deleteAllPostsCacheFromUserID(uid string) {
 	for k, v := range makePostsCache {
 		if strconv.Itoa(v.UserID) == uid {
-			makePostsCacheMu.Lock()
 			delete(makePostsCache, k)
-			makePostsCacheMu.Unlock()
 		}
 	}
 }
