@@ -638,14 +638,14 @@ func getPostsID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := makePosts(results, getCSRFToken(r), true)
-	if err != nil {
-		log.Print(err)
+	if len(results) == 0 {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	if len(posts) == 0 {
-		w.WriteHeader(http.StatusNotFound)
+	posts, err := makePosts(results, getCSRFToken(r), true)
+	if err != nil {
+		log.Print(err)
 		return
 	}
 
