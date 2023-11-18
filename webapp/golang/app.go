@@ -701,7 +701,7 @@ func postIndex(w http.ResponseWriter, r *http.Request) {
 		query,
 		me.ID,
 		mime,
-		filedata,
+		"0", // dummy
 		r.FormValue("body"),
 	)
 	if err != nil {
@@ -714,6 +714,15 @@ func postIndex(w http.ResponseWriter, r *http.Request) {
 		log.Print(err)
 		return
 	}
+
+	// save image
+	go func() {
+		err := os.WriteFile("../public"+imageURL(Post{ID: int(pid), Mime: mime}), filedata, 0644)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+	}()
 
 	http.Redirect(w, r, "/posts/"+strconv.FormatInt(pid, 10), http.StatusFound)
 }
