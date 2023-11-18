@@ -109,7 +109,7 @@ func tryLogin(accountName, password string) User {
 	}
 
 	if calculatePasshash(u.AccountName, password) == u.Passhash {
-		return *UserCache[u.ID]
+		return u
 	} else {
 		return User{}
 	}
