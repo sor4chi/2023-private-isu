@@ -282,34 +282,6 @@ func getInitialize(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// remove files whose id > 10000
-	files, err := os.ReadDir("../public/image")
-	if err != nil {
-		log.Print(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	for _, f := range files {
-		if f.Name() == ".gitignore" {
-			continue
-		}
-		idStr := strings.TrimSuffix(f.Name(), path.Ext(f.Name()))
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if id > 10000 {
-			err := os.Remove("../public/image/" + f.Name())
-			if err != nil {
-				log.Print(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		}
-	}
-
 	w.WriteHeader(http.StatusOK)
 }
 
