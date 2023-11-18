@@ -155,6 +155,7 @@ func getSessionUser(r *http.Request) User {
 	UserCacheMutex[iuid].Lock()
 	user := *UserCache[iuid]
 	UserCacheMutex[iuid].Unlock()
+	log.Default().Print(user)
 	return user
 }
 
