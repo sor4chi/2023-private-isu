@@ -160,29 +160,74 @@ func getFlash(w http.ResponseWriter, r *http.Request, key string) string {
 	}
 }
 
+// commentsとusersを結合した構造体、のちにcommentsとusersのINNER JOIN結果をbindする
+type CommentsAndUsers struct {
+	CommentID        int       `db:"comment_id"`
+	CommentPostID    int       `db:"comment_post_id"`
+	Comment          string    `db:"comment_comment"`
+	CommentCreatedAt time.Time `db:"comment_created_at"`
+	UserID           int       `db:"user_id"`
+	UserAccountName  string    `db:"user_account_name"`
+	UserPasshash     string    `db:"user_passhash"`
+	UserAuthority    int       `db:"user_authority"`
+	UserDelFlg       int       `db:"user_del_flg"`
+	UserCreatedAt    time.Time `db:"user_created_at"`
+}
+
 func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, error) {
 	var posts []Post
 
 	for _, p := range results {
-		query := "SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `created_at` ASC"
+		query := `
+			SELECT
+				comments.id AS comment_id,
+				comments.post_id AS comment_post_id,
+				comments.comment AS comment_comment,
+				comments.created_at AS comment_created_at,
+				users.id AS user_id,
+				users.account_name AS user_account_name,
+				users.passhash AS user_passhash,
+				users.authority AS user_authority,
+				users.del_flg AS user_del_flg,
+				users.created_at AS user_created_at
+			FROM
+				comments
+			INNER JOIN
+				users
+			ON
+				comments.user_id = users.id
+			WHERE
+				comments.post_id = ?
+			ORDER BY
+				comments.created_at ASC
+		`
 		if !allComments {
 			query += " LIMIT 3"
 		}
-		var comments []Comment
+
+		var comments []CommentsAndUsers
 		err := db.Select(&comments, query, p.ID)
 		if err != nil {
 			return nil, err
 		}
 
-		for i := 0; i < len(comments); i++ {
-			err := db.Get(&comments[i].User, "SELECT * FROM `users` WHERE `id` = ?", comments[i].UserID)
-			if err != nil {
-				return nil, err
-			}
+		for _, c := range comments {
+			p.Comments = append(p.Comments, Comment{
+				ID:        c.CommentID,
+				PostID:    c.CommentPostID,
+				Comment:   c.Comment,
+				CreatedAt: c.CommentCreatedAt,
+				User: User{
+					ID:          c.UserID,
+					AccountName: c.UserAccountName,
+					Passhash:    c.UserPasshash,
+					Authority:   c.UserAuthority,
+					DelFlg:      c.UserDelFlg,
+					CreatedAt:   c.UserCreatedAt,
+				},
+			})
+			p.CommentCount++
 		}
-
-		p.CommentCount = len(comments)
-		p.Comments = comments
 
 		err = db.Get(&p.User, "SELECT * FROM `users` WHERE `id` = ?", p.UserID)
 		if err != nil {
