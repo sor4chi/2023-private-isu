@@ -38,3 +38,10 @@ mysql-conf-deploy:
 	echo "mysql conf deploy"
 	sudo cp -r etc/mysql/* /etc/mysql
 	sudo systemctl restart mysql
+
+.PHONY: app-deploy
+app-deploy:
+	echo "app deploy"
+	cd /home/isucon/private_isu/webapp/golang
+	make
+	sudo systemctl restart isu-go
