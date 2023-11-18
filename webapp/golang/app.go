@@ -36,6 +36,8 @@ const (
 	UploadLimit   = 10 * 1024 * 1024 // 10mb
 )
 
+var userCache = map[string]User{}
+
 type User struct {
 	ID          int       `db:"id"`
 	AccountName string    `db:"account_name"`
@@ -142,12 +144,18 @@ func getSessionUser(r *http.Request) User {
 		return User{}
 	}
 
+	if u, ok := userCache[uid.(string)]; ok {
+		return u
+	}
+
 	u := User{}
 
 	err := db.Get(&u, "SELECT * FROM `users` WHERE `id` = ?", uid)
 	if err != nil {
 		return User{}
 	}
+
+	userCache[uid.(string)] = u
 
 	return u
 }
@@ -279,6 +287,7 @@ func getTemplPath(filename string) string {
 }
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
+	userCache = map[string]User{}
 	dbInitialize()
 	w.WriteHeader(http.StatusOK)
 }
@@ -833,10 +842,15 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for _, id := range r.Form["uid[]"] {
+		delete(userCache, id)
+	}
+
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
 }
 
 func main() {
+	userCache = map[string]User{}
 	host := os.Getenv("ISUCONP_DB_HOST")
 	if host == "" {
 		host = "localhost"
