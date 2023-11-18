@@ -848,9 +848,7 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, id := range r.Form["uid[]"] {
-		go func() {
-			deleteAllPostsCacheFromUserID(id)
-		}()
+		deleteAllPostsCacheFromUserID(id)
 	}
 
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
