@@ -165,7 +165,7 @@ func getFlash(w http.ResponseWriter, r *http.Request, key string) string {
 	}
 }
 
-func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, error) {
+func makePosts(results []Post, allComments bool) ([]Post, error) {
 	var posts []Post
 
 	postIds := make([]int, len(results))
@@ -233,7 +233,6 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 		}
 		p.Comments = comments
 		p.User = usersMap[p.UserID]
-		p.CSRFToken = csrfToken
 		posts = append(posts, p)
 	}
 
@@ -438,10 +437,16 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := makePosts(results, getCSRFToken(r), false)
+	csrfToken := getCSRFToken(r)
+
+	posts, err := makePosts(results, false)
 	if err != nil {
 		log.Print(err)
 		return
+	}
+
+	for _, p := range posts {
+		p.CSRFToken = csrfToken
 	}
 
 	getIndexTemplate.Execute(w, struct {
@@ -488,10 +493,16 @@ func getAccountName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		posts, err = makePosts(results, getCSRFToken(r), false)
+		csrfToken := getCSRFToken(r)
+
+		posts, err = makePosts(results, false)
 		if err != nil {
 			log.Print(err)
 			return
+		}
+
+		for _, p := range posts {
+			p.CSRFToken = csrfToken
 		}
 	}()
 
@@ -589,10 +600,16 @@ func getPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := makePosts(results, getCSRFToken(r), false)
+	csrfToken := getCSRFToken(r)
+
+	posts, err := makePosts(results, false)
 	if err != nil {
 		log.Print(err)
 		return
+	}
+
+	for _, p := range posts {
+		p.CSRFToken = csrfToken
 	}
 
 	if len(posts) == 0 {
@@ -624,10 +641,16 @@ func getPostsID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := makePosts(results, getCSRFToken(r), true)
+	csrfToken := getCSRFToken(r)
+
+	posts, err := makePosts(results, true)
 	if err != nil {
 		log.Print(err)
 		return
+	}
+
+	for _, p := range posts {
+		p.CSRFToken = csrfToken
 	}
 
 	if len(posts) == 0 {
