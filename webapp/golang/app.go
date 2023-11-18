@@ -147,10 +147,7 @@ func getSessionUser(r *http.Request) User {
 	if !ok || uid == nil {
 		return User{}
 	}
-	iuid, err := strconv.Atoi(uid.(string))
-	if err != nil {
-		return User{}
-	}
+	iuid := uid.(int)
 
 	UserCacheMutex[iuid].Lock()
 	user := *UserCache[iuid]
