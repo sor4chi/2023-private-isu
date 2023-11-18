@@ -424,7 +424,8 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 			users ON users.id = posts.user_id
 		WHERE
 			users.del_flg = 0
-		ORDER BY posts.created_at DESC LIMIT ?
+		ORDER BY posts.created_at DESC
+		LIMIT ?
 	`
 
 	err := db.Select(&results, query, postsPerPage)
@@ -575,7 +576,8 @@ func getPosts(w http.ResponseWriter, r *http.Request) {
 			users ON posts.user_id = users.id
 		WHERE
 			users.del_flg = 0 AND posts.created_at <= ?
-		ORDER BY posts.created_at DESC, LIMIT ?
+		ORDER BY posts.created_at DESC
+		LIMIT ?
 	`
 
 	err = db.Select(&results, query, t.Format(ISO8601Format), postsPerPage)
