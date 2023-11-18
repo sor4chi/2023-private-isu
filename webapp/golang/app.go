@@ -144,7 +144,7 @@ func getSessionUser(r *http.Request) User {
 		return User{}
 	}
 
-	if u, ok := userCache[uid.(string)]; ok {
+	if u, ok := userCache[strconv.Itoa(uid.(int))]; ok {
 		return u
 	}
 
@@ -155,7 +155,7 @@ func getSessionUser(r *http.Request) User {
 		return User{}
 	}
 
-	userCache[uid.(string)] = u
+	userCache[strconv.Itoa(uid.(int))] = u
 
 	return u
 }
