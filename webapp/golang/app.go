@@ -224,12 +224,15 @@ func makePosts(results []Post, csrfToken string, allComments bool) ([]Post, erro
 		if !allComments && len(comments) > 3 {
 			comments = comments[len(comments)-3:]
 		}
-		for i := 0; i < len(comments); i++ {
-			comments[i].User = usersMap[comments[i].UserID]
-		}
 		// reverse
 		for i, j := 0, len(comments)-1; i < j; i, j = i+1, j-1 {
 			comments[i], comments[j] = comments[j], comments[i]
+			comments[i].User = usersMap[comments[i].UserID]
+			comments[j].User = usersMap[comments[j].UserID]
+		}
+		if len(comments)%2 == 1 {
+			mid := len(comments) / 2
+			comments[mid].User = usersMap[comments[mid].UserID]
 		}
 		p.Comments = comments
 		p.User = usersMap[p.UserID]
