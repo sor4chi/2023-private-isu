@@ -100,7 +100,7 @@ func dbInitialize() {
 	}
 }
 
-func tryLogin(accountName, password string) *User {
+func tryLogin(accountName, password string) User {
 	u := User{}
 	if AccountName2ID[accountName] != 0 && UserCache[AccountName2ID[accountName]].DelFlg == 0 {
 		UserCacheMutex[AccountName2ID[accountName]].Lock()
@@ -109,9 +109,9 @@ func tryLogin(accountName, password string) *User {
 	}
 
 	if calculatePasshash(u.AccountName, password) == u.Passhash {
-		return UserCache[u.ID]
+		return u
 	} else {
-		return nil
+		return User{}
 	}
 }
 
@@ -321,15 +321,11 @@ func postLogin(w http.ResponseWriter, r *http.Request) {
 
 	u := tryLogin(r.FormValue("account_name"), r.FormValue("password"))
 
-	if u != nil {
-		UserCacheMutex[u.ID].Lock()
+	if u.ID != 0 {
 		session := getSession(r)
 		session.Values["user_id"] = u.ID
 		session.Values["csrf_token"] = secureRandomStr(16)
 		session.Save(r, w)
-		UserCacheMutex[u.ID].Unlock()
-
-		http.Redirect(w, r, "/", http.StatusFound)
 	} else {
 		session := getSession(r)
 		session.Values["notice"] = "アカウント名かパスワードが間違っています"
