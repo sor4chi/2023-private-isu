@@ -433,9 +433,9 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 			posts.body,
 			posts.mime,
 			posts.created_at
-		FROM 
+		FROM
 			posts
-		JOIN 
+		JOIN
 			users ON users.id = posts.user_id
 		WHERE
 			users.del_flg = 0
@@ -516,19 +516,7 @@ func getAccountName(w http.ResponseWriter, r *http.Request) {
 
 	commentedCount := 0
 	if postCount > 0 {
-		s := []string{}
-		for range postIDs {
-			s = append(s, "?")
-		}
-		placeholder := strings.Join(s, ", ")
-
-		// convert []int -> []interface{}
-		args := make([]interface{}, len(postIDs))
-		for i, v := range postIDs {
-			args[i] = v
-		}
-
-		err = db.Get(&commentedCount, "SELECT COUNT(*) AS count FROM `comments` WHERE `post_id` IN ("+placeholder+")", args...)
+		err := db.Get(&commentedCount, "SELECT COUNT(*) AS count FROM `comments` WHERE EXISTS (SELECT `id` FROM `posts` WHERE `user_id` = ? AND `id` = `comments`.`post_id`)", user.ID)
 		if err != nil {
 			log.Print(err)
 			return
