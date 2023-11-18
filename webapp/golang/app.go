@@ -250,16 +250,24 @@ func getTemplPath(filename string) string {
 }
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
-	// reset image directory
-	os.RemoveAll("../public/image")
-
 	dbInitialize()
+
+	// create image directory if not exists
+	if _, err := os.Stat("../public/image"); os.IsNotExist(err) {
+		err := os.Mkdir("../public/image", 0755)
+		if err != nil {
+			log.Print(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
 
 	// save images
 	results := []Post{}
 	err := db.Select(&results, "SELECT * FROM `posts`")
 	if err != nil {
 		log.Print(err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	for _, p := range results {
@@ -270,6 +278,32 @@ func getInitialize(w http.ResponseWriter, r *http.Request) {
 		err := os.WriteFile("../public"+file, p.Imgdata, 0644)
 		if err != nil {
 			log.Print(err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}
+
+	// remove files whose id > 10000
+	files, err := os.ReadDir("../public/image")
+	if err != nil {
+		log.Print(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	for _, f := range files {
+		idStr := strings.TrimSuffix(f.Name(), path.Ext(f.Name()))
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			log.Print(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if id > 10000 {
+			err := os.Remove("../public/image/" + f.Name())
+			if err != nil {
+				log.Print(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
