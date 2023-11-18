@@ -411,7 +411,24 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 
 	results := []Post{}
 
-	err := db.Select(&results, "SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` ORDER BY `created_at` DESC")
+	const query = `
+		SELECT
+			posts.id,
+			posts.user_id,
+			posts.body,
+			posts.mime,
+			posts.created_at
+		FROM 
+			posts
+		JOIN 
+			users ON users.id = posts.user_id
+		WHERE
+			users.del_flg = 0
+		ORDER BY posts.created_at DESC
+		LIMIT ?
+	`
+
+	err := db.Select(&results, query, postsPerPage)
 	if err != nil {
 		log.Print(err)
 		return
@@ -545,7 +562,26 @@ func getPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := []Post{}
-	err = db.Select(&results, "SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `created_at` <= ? ORDER BY `created_at` DESC", t.Format(ISO8601Format))
+
+	const query = `
+		SELECT
+			posts.id,
+			posts.user_id,
+			posts.body,
+			posts.mime,
+			posts.created_at
+		FROM
+			posts
+		JOIN
+			users ON posts.user_id = users.id
+		WHERE
+			users.del_flg = 0 AND posts.created_at <= ?
+		ORDER BY posts.created_at DESC
+		LIMIT ?
+	`
+
+	err = db.Select(&results, query, t.Format(ISO8601Format), postsPerPage)
+
 	if err != nil {
 		log.Print(err)
 		return
