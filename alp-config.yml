@@ -1,0 +1,18 @@
+matching_groups:
+    - /image/.+
+    - /js/.+
+    - /css/.+
+    - /posts/[0-9]+
+    - /@[a-z]+
+sort: avg
+reverse: true
+metrics:
+  - count
+  - method
+  - uri
+  - min
+  - avg
+  - max
+  - sum
+file: /var/log/nginx/access.ndjson
+
