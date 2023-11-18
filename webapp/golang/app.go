@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -891,5 +892,17 @@ func main() {
 	r.Post("/admin/banned", postAdminBanned)
 	r.Get(`/@{accountName:[a-zA-Z]+}`, getAccountName)
 
-	log.Fatal(http.ListenAndServe(":8080", r))
+	sock := "/var/run/app.sock"
+	if err := os.RemoveAll(sock); err != nil {
+		log.Fatal(err)
+	}
+	listener, err := net.Listen("unix", sock)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer listener.Close()
+
+	if err := http.Serve(listener, r); err != nil {
+		log.Fatal(err)
+	}
 }
