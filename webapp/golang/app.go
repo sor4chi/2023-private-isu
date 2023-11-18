@@ -807,16 +807,26 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := "UPDATE `users` SET `del_flg` = ? WHERE `id` = ?"
-
 	err := r.ParseForm()
 	if err != nil {
 		log.Print(err)
 		return
 	}
 
-	for _, id := range r.Form["uid[]"] {
-		db.Exec(query, 1, id)
+	ids := make([]interface{}, len(r.Form["uid[]"]))
+	for i, id := range r.Form["uid[]"] {
+		ids[i] = id
+	}
+
+	query, args, err := sqlx.In("UPDATE `users` SET `del_flg` = 1 WHERE `id` IN (?)", ids)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	_, err = db.Exec(query, args...)
+	if err != nil {
+		log.Print(err)
+		return
 	}
 
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
