@@ -251,37 +251,6 @@ func getTemplPath(filename string) string {
 
 func getInitialize(w http.ResponseWriter, r *http.Request) {
 	dbInitialize()
-
-	// create image directory if not exists
-	if _, err := os.Stat("../public/image"); os.IsNotExist(err) {
-		err := os.Mkdir("../public/image", 0755)
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
-
-	// save images
-	results := []Post{}
-	err := db.Select(&results, "SELECT * FROM `posts`")
-	if err != nil {
-		log.Print(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	for _, p := range results {
-		file := imageURL(p)
-		if _, err := os.Stat("../public" + file); err == nil {
-			continue
-		}
-		err := os.WriteFile("../public"+file, p.Imgdata, 0644)
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}
-
 	w.WriteHeader(http.StatusOK)
 }
 
