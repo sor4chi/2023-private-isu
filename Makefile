@@ -44,3 +44,10 @@ app-deploy:
 	echo "app deploy"
 	cd /home/isucon/private_isu/webapp/golang && make
 	sudo systemctl restart isu-go
+
+.PHONY: clean-logs
+clean-logs:
+	echo "clean logs"
+	sudo rm -f /var/log/nginx/access.ndjson*
+	sudo rm -f /var/log/mysql/mysql-slow.log*
+	sudo journalctl --vacuum-time=1m
