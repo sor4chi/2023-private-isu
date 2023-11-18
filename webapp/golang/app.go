@@ -747,12 +747,14 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := "INSERT INTO `comments` (`post_id`, `user_id`, `comment`) VALUES (?,?,?)"
-	_, err = db.Exec(query, postID, me.ID, r.FormValue("comment"))
-	if err != nil {
-		log.Print(err)
-		return
-	}
+	go func() {
+		query := "INSERT INTO `comments` (`post_id`, `user_id`, `comment`) VALUES (?,?,?)"
+		_, err = db.Exec(query, postID, me.ID, r.FormValue("comment"))
+		if err != nil {
+			log.Print(err)
+			return
+		}
+	}()
 
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
