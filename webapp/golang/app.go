@@ -506,7 +506,7 @@ func getAccountName(w http.ResponseWriter, r *http.Request) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err = db.Select(&postCount, "SELECT COUNT(`id`) FROM `posts` WHERE `user_id` = ?", user.ID)
+		err = db.Get(&postCount, "SELECT COUNT(`id`) FROM `posts` WHERE `user_id` = ?", user.ID)
 		if err != nil {
 			log.Print(err)
 			return
