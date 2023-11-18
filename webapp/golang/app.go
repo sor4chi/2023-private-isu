@@ -713,6 +713,8 @@ func postIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	makePostsCache = map[string][]Post{}
+
 	pid, err := result.LastInsertId()
 	if err != nil {
 		log.Print(err)
@@ -755,6 +757,7 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 		log.Print(err)
 		return
 	}
+	makePostsCache = map[string][]Post{}
 
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
@@ -818,6 +821,7 @@ func postAdminBanned(w http.ResponseWriter, r *http.Request) {
 	for _, id := range r.Form["uid[]"] {
 		db.Exec(query, 1, id)
 	}
+	makePostsCache = map[string][]Post{}
 
 	http.Redirect(w, r, "/admin/banned", http.StatusFound)
 }
