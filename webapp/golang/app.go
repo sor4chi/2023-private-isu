@@ -417,10 +417,7 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 
 	var posts []Post
 	if len(latestGetIndexResponse) > 0 {
-		for _, p := range posts {
-			posts = latestGetIndexResponse
-			p.CSRFToken = getCSRFToken(r)
-		}
+		posts = latestGetIndexResponse
 	} else {
 
 		results := []Post{}
@@ -786,18 +783,20 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := "INSERT INTO `comments` (`post_id`, `user_id`, `comment`) VALUES (?,?,?)"
-	_, err = db.Exec(query, postID, me.ID, r.FormValue("comment"))
-	if err != nil {
-		log.Print(err)
-		return
-	}
-	for _, r := range latestGetIndexResponse {
-		if r.ID == postID {
-			latestGetIndexResponse = []Post{}
-			break
+	go func() {
+		query := "INSERT INTO `comments` (`post_id`, `user_id`, `comment`) VALUES (?,?,?)"
+		_, err = db.Exec(query, postID, me.ID, r.FormValue("comment"))
+		if err != nil {
+			log.Print(err)
+			return
 		}
-	}
+		for _, r := range latestGetIndexResponse {
+			if r.ID == postID {
+				latestGetIndexResponse = []Post{}
+				break
+			}
+		}
+	}()
 
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
